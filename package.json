@@ -6,7 +6,7 @@
   "main": "main.js",
   "dependencies": {
     "colormap": "^2.3.0",
-    "ol": ">=5.0.0-beta.13 <5.0.0-c",
+    "ol": "^5.1.0-beta.2",
     "ol-hashed": ">=2.0.0-beta.1 < 2.0.0-c",
     "ol-mapbox-style": ">=3.0.0-beta.4 <3.0.0-c"
   },
