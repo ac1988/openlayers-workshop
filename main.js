@@ -1,126 +1,63 @@
 import 'ol/ol.css';
-import GeoJSON from 'ol/format/GeoJSON'; 
 import Map from 'ol/Map'; 
-import VectorLayer from 'ol/layer/Vector';
-import VectorSource from 'ol/source/Vector';
-import View from 'ol/View';  
-import DragAndDrop from 'ol/interaction/DragAndDrop';
-import Modify from 'ol/interaction/Modify';
-import Draw from 'ol/interaction/Draw';
-import Snap from 'ol/interaction/Snap';
-import {Fill, Stroke, Style} from 'ol/style';
-import {getArea} from 'ol/sphere';
-import colormap from 'colormap';
+import View from 'ol/View'; 
+import MVT from 'ol/format/MVT';
+import VectorTileLayer from 'ol/layer/VectorTile';
+import VectorTileSource from 'ol/source/VectorTile'; 
+import Overlay from 'ol/Overlay';
 
-const map = new Map({ 
-    target: 'map-container', 
-    view: new View({ 
-        center: [0, 0], 
-        zoom: 2 
-    }) 
-}); 
+const key = '2OjrAx6tq0xx3P0FuJCh';
 
-const source = new VectorSource();
-
-//VectorLayer with default styling
-// const layer = new VectorLayer({
-//     source: source
-// });
-
-//Example of static layer styling(renders features with a red fill and white outline)
-// const layer = new VectorLayer({
-//     source: source,
-//     style: new Style({
-//         fill: new Fill({
-//             color: 'red'
-//         }),
-//         stroke: new Stroke({
-//             color: 'white'
-//         })
-//     })
-// });
-
-//Example of dynamic layer styling(renders features using one of two styles depending on whether the "name" attribute starts with "A-M" or "N-Z")
-// const layer = new VectorLayer({
-//     source: source,
-//     style: function(feature, resolution) {
-//         const name = feature.get('name'.toUpperCase);
-//         return name < "N" ? style1 : style2; //assuming these are created elsewhere
-//     }
-// });
-
-//Example of a VectorLayer that is styled based on the area of a feature
-//Functions to determine a color based on the area of a geometry
-const min = 1e8; //the smallest area
-const max = 2e13; //the biggest area
-const steps = 50;
-const ramp = colormap({
-    colormap: 'blackbody',
-    nshades: steps
+const map = new Map({
+    target: 'map-container',
+    view: new View({
+        center: [0, 0],
+        zoom: 2
+    })
 });
 
-function clamp(value, low, high) {
-    return Math.max(low, Math.min(value, high));
-}
-
-function getColor(feature) {
-    const area = getArea(feature.getGeometry());
-    const f = Math.pow(clamp((area - min) / (max -min), 0, 1), 1 / 2);
-    const index = Math.round(f * (steps -1));
-    return ramp[index];
-}
-
-//VectorLayer that utilizes the style provided by our area function above
-const layer = new VectorLayer({
-    source: source,
-    style: function(feature) {
-        return new Style({
-            fill: new Fill({
-                color: getColor(feature)
-            }),
-            stroke: new Stroke({
-                color: 'rgba(255,255,255,0.8'
-            })
-        });
-    }
+const layer = new VectorTileLayer({
+    source: new VectorTileSource({
+        attributions: [
+            '<a href="http://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a>',
+            '<a href="http://www.openstreetmap.org/about/" target="_blank">&copy; OpenStreetMap contributors</a>'
+        ],
+        format: new MVT(),
+        url: `https://free-{1-3}.tilehosting.com/data/v3/{z}/{x}/{y}.pbf.pict?key=${key}`,
+        maxZoom: 14
+    })
 });
-
 map.addLayer(layer);
 
-//Allows you to drag and drop a .json file into the map application
-map.addInteraction(new DragAndDrop({
-    source: source,
-    formatConstructors: [GeoJSON]
-}));
+//Creates the pop-up overlay
+const overlay = new Overlay({
+    element: document.getElementById('popup-container'),
+    positioning: 'bottom-center',
+    offset: [0, -10],
+    autoPan: true
+});
+map.addOverlay(overlay);
 
-//Allows you to modify existing features on the map
-map.addInteraction(new Modify({
-    source: source
-}));
-
-//Allows you to add polygon features to the map
-map.addInteraction(new Draw({
-    type:'Polygon',
-    source: source
-}));
-
-//Used to help preserve topology while drawing and editing features
-map.addInteraction(new Snap({
-    source: source
-}));
-
-//Clears changes made to the map
-const clear = document.getElementById('clear');
-clear.addEventListener('click', function() {
-    source.clear();
+//Adds a click listener to the overlay, so it closes when we click on it
+overlay.getElement().addEventListener('click', function() {
+    overlay.setPosition();  //Calling setPosition() on an overlay sets an undefined position, which causes the overlay to disappear
 });
 
-//Serializes feature data for download
-const format = new GeoJSON({featureProjection: 'EPSG:3857'});
-const download = document.getElementById('download');
-source.on('change', function() {
-    const features = source.getFeatures();
-    const json = format.writeFeatures(features);
-    download.href = 'data:text/json;charset=utf-8' + json;
+//Fills the pop-up with feature attributes
+map.on('click', function(e){
+    let markup = '';
+    map.forEachFeatureAtPixel(e.pixel, function(feature){
+        markup += `${markup && '<hr>'}<table>`;
+        const properties = feature.getProperties();
+        for (const property in properties) {
+            markup += `<tr><th>${property}<th><td>${properties[property]}</td></tr>`;
+        }
+        markup += '</table>';
+    }, {hitTolerance: 1}); //Set hit tolerance of 1 pixel to make it easier to click on lines
+    if (markup) {
+        document.getElementById('popup-content').innerHTML = markup;
+        overlay.setPosition(e.coordinate);
+    } else {
+        overlay.setPosition();
+    }
 });
-
